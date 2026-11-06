@@ -1,28 +1,42 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-
-Route::get('/', function () {
-    return view('welcome');
-});
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\MonitoringController;
+use App\Http\Controllers\RiwayatController;
+use App\Http\Controllers\KendaliController;
+use App\Http\Controllers\BatasAmbangController;
 
-// Route Halaman Utama & Menu Sesuai Mockup
+/*
+|--------------------------------------------------------------------------
+| Web Routes
+|--------------------------------------------------------------------------
+*/
 
-
-// Route Halaman Login & Autentikasi
+// Halaman Login & Autentikasi
 Route::get('/login', [DashboardController::class, 'showLogin'])->name('login');
-Route::post('/login', [DashboardController::class, 'processLogin'])->name('login.process');
+Route::post('/login', [DashboardController::class, 'processLogin']);
 Route::post('/logout', [DashboardController::class, 'logout'])->name('logout');
 
-// Route yang dilindungi middleware auth (hanya bisa diakses jika sudah login)
+// Route yang dilindungi middleware 'auth' (Menggunakan Controller Terpisah)
 Route::middleware('auth')->group(function () {
+    // Menu Dashboard Utama
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
-    Route::get('/monitoring', [DashboardController::class, 'monitoring'])->name('monitoring');
-    Route::get('/riwayat', [DashboardController::class, 'riwayat'])->name('riwayat');
-    Route::get('/aktuator', [DashboardController::class, 'aktuator'])->name('aktuator');
-    Route::get('/pengaturan', [DashboardController::class, 'pengaturan'])->name('pengaturan');
 
-    Route::post('/aktuator/{id}/toggle', [DashboardController::class, 'toggleAktuator'])->name('aktuator.toggle');
-    Route::post('/pengaturan/update', [DashboardController::class, 'updateAmbang'])->name('ambang.update');
+    // Menu Monitoring (Dipegang MonitoringController)
+    Route::get('/monitoring', [MonitoringController::class, 'index'])->name('monitoring');
+
+    // Menu Riwayat Data (Dipegang RiwayatController)
+    Route::get('/riwayat', [RiwayatController::class, 'index'])->name('riwayat');
+
+    // Menu Kendali Aktuator (Dipegang KendaliController)
+    Route::get('/aktuator', [KendaliController::class, 'index'])->name('aktuator');
+    Route::post('/aktuator/{id}/toggle', [KendaliController::class, 'toggle'])->name('aktuator.toggle');
+
+    // Menu Pengaturan Ambang Batas (Dipegang BatasAmbangController)
+    Route::get('/pengaturan', [BatasAmbangController::class, 'index'])->name('pengaturan');
+    Route::post('/pengaturan/update', [BatasAmbangController::class, 'update'])->name('ambang.update');
 });
+
+// Endpoint API untuk ESP32
+Route::post('/api/sensor/store', [DashboardController::class, 'apiStoreSensor']);
