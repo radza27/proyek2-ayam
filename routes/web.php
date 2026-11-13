@@ -15,7 +15,7 @@ use App\Http\Controllers\BatasAmbangController;
 
 // Halaman Login & Autentikasi
 Route::get('/login', [DashboardController::class, 'showLogin'])->name('login');
-Route::post('/login', [DashboardController::class, 'processLogin'])->name('login.process'); // <--- Ditambahkan .name('login.process') di sini
+Route::post('/login', [DashboardController::class, 'processLogin'])->name('login.process');
 Route::post('/logout', [DashboardController::class, 'logout'])->name('logout');
 
 // Route yang dilindungi middleware 'auth' (Menggunakan Controller Terpisah)
@@ -28,6 +28,7 @@ Route::middleware('auth')->group(function () {
 
     // Menu Riwayat Data (Dipegang RiwayatController)
     Route::get('/riwayat', [RiwayatController::class, 'index'])->name('riwayat');
+    Route::get('/riwayat/export-csv', [RiwayatController::class, 'exportCsv'])->name('riwayat.export'); // <--- Route ekspor CSV ditambahkan di sini
 
     // Menu Kendali Aktuator (Dipegang KendaliController)
     Route::get('/aktuator', [KendaliController::class, 'index'])->name('aktuator');

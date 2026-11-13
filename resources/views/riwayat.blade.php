@@ -65,7 +65,7 @@
 
         .animate-row {
             animation: fadeInUp 0.4s ease forwards;
-            opacity: 0; /* Mulai dalam keadaan transparan sebelum animasi berjalan */
+            opacity: 0;
         }
     </style>
 </head>
@@ -162,7 +162,11 @@
         <div class="card-custom">
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h5 class="fw-bold mb-0 fs-6"><i class="fas fa-table text-success me-2"></i>Log Pembacaan Telemetri</h5>
-                <button class="btn btn-dark btn-sm rounded-pill px-3"><i class="fas fa-download me-1"></i> Ekspor CSV</button>
+                
+                <!-- Tombol Ekspor CSV diubah menjadi Tag <a> yang mengarah ke route riwayat.export -->
+                <a href="{{ route('riwayat.export') }}" class="btn btn-dark btn-sm rounded-pill px-3">
+                    <i class="fas fa-download me-1"></i> Ekspor CSV
+                </a>
             </div>
 
             <div class="table-responsive">
@@ -178,7 +182,6 @@
                     </thead>
                     <tbody>
                         @forelse($logs as $index => $log)
-                            <!-- Menambahkan class animate-row dan animation-delay bertingkat -->
                             <tr class="animate-row" style="animation-delay: {{ $index * 0.05 }}s;">
                                 <td>{{ \Carbon\Carbon::parse($log->created_at)->format('d M Y, H:i:s') }} WIB</td>
                                 <td class="fw-bold text-danger">{{ $log->suhu }} °C</td>
