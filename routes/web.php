@@ -15,7 +15,7 @@ use App\Http\Controllers\BatasAmbangController;
 
 // Halaman Login & Autentikasi
 Route::get('/login', [DashboardController::class, 'showLogin'])->name('login');
-Route::post('/login', [DashboardController::class, 'processLogin']);
+Route::post('/login', [DashboardController::class, 'processLogin'])->name('login.process'); // <--- Ditambahkan .name('login.process') di sini
 Route::post('/logout', [DashboardController::class, 'logout'])->name('logout');
 
 // Route yang dilindungi middleware 'auth' (Menggunakan Controller Terpisah)
