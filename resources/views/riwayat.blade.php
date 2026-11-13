@@ -163,7 +163,6 @@
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h5 class="fw-bold mb-0 fs-6"><i class="fas fa-table text-success me-2"></i>Log Pembacaan Telemetri</h5>
                 
-                <!-- Tombol Ekspor CSV diubah menjadi Tag <a> yang mengarah ke route riwayat.export -->
                 <a href="{{ route('riwayat.export') }}" class="btn btn-dark btn-sm rounded-pill px-3">
                     <i class="fas fa-download me-1"></i> Ekspor CSV
                 </a>

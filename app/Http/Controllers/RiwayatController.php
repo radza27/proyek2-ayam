@@ -33,10 +33,8 @@ class RiwayatController extends Controller
         $callback = function() use ($logs, $columns) {
             $file = fopen('php://output', 'w');
             
-            // BOM UTF-8 agar karakter khusus aman dan terbaca baik di Excel
             fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
 
-            // Menggunakan pemisah KOMA (',') standar CSV
             fputcsv($file, $columns, ',');
 
             foreach ($logs as $log) {
