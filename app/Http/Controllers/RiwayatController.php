@@ -2,51 +2,81 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use App\Models\SensorLog;
+use App\Models\SensorLog; 
 use Carbon\Carbon;
+use Illuminate\Http\Request;
 
 class RiwayatController extends Controller
 {
-    public function index() {
-        $logs = SensorLog::latest()->paginate(9);
+    private function buildFilteredQuery(Request $request)
+    {
+        $query = SensorLog::query();
+
+        // 1. Filtering rentang waktu
+        $filter = $request->get('filter', 'minggu_ini');
+        if ($filter === 'hari_ini') {
+            $query->whereDate('created_at', Carbon::today());
+        } elseif ($filter === '3_hari') {
+            $query->where('created_at', '>=', Carbon::now()->subDays(3));
+        } elseif ($filter === 'minggu_ini') {
+            $query->whereBetween('created_at', [Carbon::now()->startOfWeek(), Carbon::now()->endOfWeek()]);
+        } elseif ($filter === '10_hari') {
+            $query->where('created_at', '>=', Carbon::now()->subDays(10));
+        } elseif ($filter === 'bulan_ini') {
+            $query->whereMonth('created_at', Carbon::now()->month)
+                  ->whereYear('created_at', Carbon::now()->year);
+        } elseif ($filter === 'custom' && $request->filled(['start_date', 'end_date'])) {
+            $query->whereBetween('created_at', [
+                Carbon::parse($request->start_date)->startOfDay(),
+                Carbon::parse($request->end_date)->endOfDay()
+            ]);
+        }
+
+        // 2. Pengurutan Terbaru / Terlama
+        $sort = $request->get('sort', 'terbaru');
+        $query->orderBy('created_at', $sort === 'terlama' ? 'asc' : 'desc');
+
+        return $query;
+    }
+
+    public function index(Request $request)
+    {
+        $logs = $this->buildFilteredQuery($request)->paginate(9);
+
         return view('riwayat', compact('logs'));
     }
 
-    public function exportCsv()
+    public function exportCsv(Request $request)
     {
-        $fileName = 'riwayat_sensor_primafarm_' . date('Y-m-d_H-i') . '.csv';
-        
-        // Mengambil seluruh data sensor terbaru dari database
-        $logs = SensorLog::latest()->get();
+        $logs = $this->buildFilteredQuery($request)->get();
+        $filename = 'riwayat-data-prima-farm-' . now()->format('Y-m-d_H-i') . '.csv';
 
         $headers = [
-            "Content-type"        => "text/csv; charset=UTF-8",
-            "Content-Disposition" => "attachment; filename=$fileName",
-            "Pragma"              => "no-cache",
-            "Cache-Control"       => "must-revalidate, post-check=0, pre-check=0",
-            "Expires"             => "0"
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ];
 
-        $columns = ['Tanggal & Waktu', 'Suhu (C)', 'Gas Amonia (PPM)', 'Status', 'Sumber'];
-
-        $callback = function() use ($logs, $columns) {
+        $callback = function () use ($logs) {
             $file = fopen('php://output', 'w');
-            
-            fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
 
-            fputcsv($file, $columns, ',');
+            // BOM UTF-8 agar karakter/angka rapi saat dibuka di Microsoft Excel
+            fprintf($file, chr(0xEF) . chr(0xBB) . chr(0xBF));
+
+            // Header kolom CSV (pakai titik koma ';' agar langsung terpecah kolom di Excel Indonesia)
+            fputcsv($file, ['Tanggal & Waktu', 'Suhu (°C)', 'Gas Amonia (ppm)', 'Status', 'Sumber'], ';');
 
             foreach ($logs as $log) {
-                $row = [
-                    Carbon::parse($log->created_at)->format('d M Y, H:i:s') . ' WIB',
-                    $log->suhu . ' C',
-                    $log->amonia . ' ppm',
-                    $log->status ?? 'Aman',
-                    'ESP32-01'
-                ];
+                $waktu = Carbon::parse($log->created_at)->format('d M Y, H:i:s') . ' WIB';
+                $status = $log->status ?? (($log->suhu > 30 || $log->amonia >= 20) ? 'Waspada' : 'Aman');
+                $sumber = $log->sumber ?? 'ESP32-01';
 
-                fputcsv($file, $row, ',');
+                fputcsv($file, [
+                    $waktu,
+                    number_format($log->suhu, 1),
+                    number_format($log->amonia, 1),
+                    $status,
+                    $sumber,
+                ], ';');
             }
 
             fclose($file);
