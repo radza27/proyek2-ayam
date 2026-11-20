@@ -85,8 +85,11 @@
         .table-custom tbody td:last-child { border-top-right-radius: 10px; border-bottom-right-radius: 10px; }
 
         .dot-indicator { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+
+        /* Badge Status: Aman / Peringatan / Kritis */
         .badge-status-aman { background-color: #dcfce7; color: #15803d; padding: 5px 12px; border-radius: 20px; font-weight: 600; font-size: 0.78rem; }
-        .badge-status-waspada { background-color: #fef3c7; color: #b45309; padding: 5px 12px; border-radius: 20px; font-weight: 600; font-size: 0.78rem; }
+        .badge-status-peringatan { background-color: #fef3c7; color: #b45309; padding: 5px 12px; border-radius: 20px; font-weight: 600; font-size: 0.78rem; }
+        .badge-status-kritis { background-color: #fee2e2; color: #b91c1c; padding: 5px 12px; border-radius: 20px; font-weight: 600; font-size: 0.78rem; }
 
         /* Sort Select Box */
         .sort-box {
@@ -232,6 +235,11 @@
         @php
             $activeFilter = request('filter', 'minggu_ini');
             $currentSort = request('sort', 'terbaru');
+
+            // Batas ambang (pakai $batas dari controller jika ada, kalau tidak pakai nilai default migration)
+            $suhuMin   = isset($batas) ? $batas->suhuMin   : 24;
+            $suhuMax   = isset($batas) ? $batas->suhuMax   : 32;
+            $amoniaMax = isset($batas) ? $batas->amoniaMax : 20;
         @endphp
         <div class="card-custom">
             <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
@@ -344,7 +352,32 @@
                         @forelse($logs as $index => $log)
                             @php
                                 $waktu = \Carbon\Carbon::parse($log->created_at);
-                                $isWaspada = ($log->suhu > 30 || $log->amonia >= 20 || ($log->status && strtolower($log->status) !== 'aman'));
+
+                                // Status langsung dari database: Aman | Peringatan | Kritis
+                                $status = $log->status ?? 'Aman';
+                                $badgeClass = match ($status) {
+                                    'Kritis'     => 'badge-status-kritis',
+                                    'Peringatan' => 'badge-status-peringatan',
+                                    default      => 'badge-status-aman',
+                                };
+
+                                // Warna titik indikator suhu mengikuti batas ambang
+                                if ($log->suhu > $suhuMax || $log->suhu < $suhuMin) {
+                                    $dotSuhu = 'bg-danger';
+                                } elseif ($log->suhu >= $suhuMax - 2 || $log->suhu <= $suhuMin + 1) {
+                                    $dotSuhu = 'bg-warning';
+                                } else {
+                                    $dotSuhu = 'bg-success';
+                                }
+
+                                // Warna titik indikator amonia mengikuti batas ambang
+                                if ($log->amonia > $amoniaMax) {
+                                    $dotAmonia = 'bg-danger';
+                                } elseif ($log->amonia >= $amoniaMax * 0.75) {
+                                    $dotAmonia = 'bg-warning';
+                                } else {
+                                    $dotAmonia = 'bg-success';
+                                }
                             @endphp
                             <tr class="animate-row" style="animation-delay: {{ $index * 0.04 }}s;">
                                 <td>
@@ -352,26 +385,20 @@
                                     <div class="text-muted" style="font-size: 0.78rem;">{{ $waktu->diffForHumans() }}</div>
                                 </td>
                                 <td>
-                                    <span class="dot-indicator bg-warning"></span>
+                                    <span class="dot-indicator {{ $dotSuhu }}"></span>
                                     <span class="fw-bold text-dark">{{ number_format($log->suhu, 1) }}°C</span>
                                 </td>
                                 <td>
-                                    <span class="dot-indicator bg-success"></span>
+                                    <span class="dot-indicator {{ $dotAmonia }}"></span>
                                     <span class="fw-bold text-dark">{{ number_format($log->amonia, 1) }} ppm</span>
                                 </td>
                                 <td>
-                                    @if($isWaspada)
-                                        <span class="badge-status-waspada">
-                                            <i class="fas fa-circle me-1" style="font-size: 6px;"></i> {{ $log->status ?? 'Waspada' }}
-                                        </span>
-                                    @else
-                                        <span class="badge-status-aman">
-                                            <i class="fas fa-circle me-1" style="font-size: 6px;"></i> {{ $log->status ?? 'Aman' }}
-                                        </span>
-                                    @endif
+                                    <span class="{{ $badgeClass }}">
+                                        <i class="fas fa-circle me-1" style="font-size: 6px;"></i> {{ $status }}
+                                    </span>
                                 </td>
                                 <td>
-                                    <span class="text-muted small fw-medium"><i class="fas fa-wifi me-1"></i> {{ $log->sumber ?? 'ESP32-01' }}</span>
+                                    <span class="text-muted small fw-medium"><i class="fas fa-wifi me-1"></i> {{ $log->alat->nama ?? ($alat->nama ?? 'ESP32-01') }}</span>
                                 </td>
                             </tr>
                         @empty

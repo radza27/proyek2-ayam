@@ -27,6 +27,12 @@
         .topbar-header { background: #fff; padding: 12px 25px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
         .card-custom { background: #fff; border: none; border-radius: 16px; box-shadow: 0 2px 6px rgba(0,0,0,0.03); padding: 20px; height: 100%; }
         .form-check-input:checked { background-color: #032b1b; border-color: #032b1b; }
+
+        /* Badge Status: Aman / Peringatan / Kritis */
+        .badge-status-aman { background-color: #dcfce7; color: #15803d; padding: 5px 12px; border-radius: 20px; font-weight: 600; font-size: 0.78rem; }
+        .badge-status-peringatan { background-color: #fef3c7; color: #b45309; padding: 5px 12px; border-radius: 20px; font-weight: 600; font-size: 0.78rem; }
+        .badge-status-kritis { background-color: #fee2e2; color: #b91c1c; padding: 5px 12px; border-radius: 20px; font-weight: 600; font-size: 0.78rem; }
+        .badge-status-none { background-color: #f1f5f9; color: #64748b; padding: 5px 12px; border-radius: 20px; font-weight: 600; font-size: 0.78rem; }
     </style>
 </head>
 <body>
@@ -105,6 +111,70 @@
     </div>
 </div>
 
+    @php
+        // ===== Batas ambang (dari relasi, fallback ke default migration) =====
+        $suhuMin   = $alat->batasAmbang->suhuMin   ?? 24;
+        $suhuMax   = $alat->batasAmbang->suhuMax   ?? 32;
+        $amoniaMax = $alat->batasAmbang->amoniaMax ?? 20;
+
+        // ===== Tema warna per level: aman / peringatan / kritis / none =====
+        $tema = [
+            'aman'       => ['bs' => 'success',   'hex' => '#15803d', 'badge' => 'badge-status-aman',       'icon' => 'fa-check-circle'],
+            'peringatan' => ['bs' => 'warning',   'hex' => '#b45309', 'badge' => 'badge-status-peringatan', 'icon' => 'fa-exclamation-triangle'],
+            'kritis'     => ['bs' => 'danger',    'hex' => '#b91c1c', 'badge' => 'badge-status-kritis',     'icon' => 'fa-times-circle'],
+            'none'       => ['bs' => 'secondary', 'hex' => '#64748b', 'badge' => 'badge-status-none',       'icon' => 'fa-question-circle'],
+        ];
+
+        // ===== Penilai level suhu & amonia (aturan sama dengan seeder & halaman riwayat) =====
+        $levelSuhu = function ($v) use ($suhuMin, $suhuMax) {
+            if ($v === null) return 'none';
+            if ($v > $suhuMax || $v < $suhuMin) return 'kritis';
+            if ($v >= $suhuMax - 2 || $v <= $suhuMin + 1) return 'peringatan';
+            return 'aman';
+        };
+        $levelAmonia = function ($v) use ($amoniaMax) {
+            if ($v === null) return 'none';
+            if ($v > $amoniaMax) return 'kritis';
+            if ($v >= $amoniaMax * 0.75) return 'peringatan';
+            return 'aman';
+        };
+
+        // ===== Status kandang keseluruhan (dari log terbaru di database) =====
+        $statusKandang = isset($latestLog) && $latestLog
+            ? (in_array(strtolower($latestLog->status ?? ''), ['aman', 'peringatan', 'kritis']) ? strtolower($latestLog->status) : 'aman')
+            : 'none';
+
+        $teksHeader = [
+            'aman'       => 'Status Kandang: AMAN & STABIL',
+            'peringatan' => 'Status Kandang: PERINGATAN, PERLU DIPANTAU',
+            'kritis'     => 'Status Kandang: KRITIS, SEGERA TANGANI',
+            'none'       => 'Status Kandang: BELUM ADA DATA',
+        ];
+        $iconHeader = [
+            'aman'       => 'fa-shield-alt',
+            'peringatan' => 'fa-exclamation-triangle',
+            'kritis'     => 'fa-exclamation-circle',
+            'none'       => 'fa-question-circle',
+        ];
+
+        // ===== Level kartu suhu & amonia (dari log terbaru) =====
+        $lvSuhu   = $levelSuhu($latestLog->suhu ?? null);
+        $lvAmonia = $levelAmonia($latestLog->amonia ?? null);
+
+        $pesanSuhu = [
+            'aman'       => 'Dalam batas aman',
+            'peringatan' => 'Mendekati batas ambang',
+            'kritis'     => (($latestLog->suhu ?? 0) > $suhuMax) ? 'Terlalu panas, di atas batas' : 'Terlalu dingin, di bawah batas',
+            'none'       => 'Belum ada data',
+        ];
+        $pesanAmonia = [
+            'aman'       => 'Kualitas udara baik',
+            'peringatan' => 'Kadar amonia meningkat',
+            'kritis'     => 'Melebihi batas aman',
+            'none'       => 'Belum ada data',
+        ];
+    @endphp
+
     <!-- KONTEN UTAMA -->
     <div class="main-content">
         <div class="topbar-header">
@@ -125,36 +195,50 @@
                 <p class="text-muted small mb-0">Rangkuman lengkap kondisi kandang, pembacaan sensor live, status aktuator, dan log riwayat.</p>
             </div>
             <div>
-                <span class="badge bg-success bg-opacity-25 text-success px-3 py-2 fw-bold rounded-pill"><i class="fas fa-shield-alt me-1"></i> Status Kandang: AMAN & STABIL</span>
+                <!-- Banner status kandang: warna mengikuti status log terbaru -->
+                <span class="{{ $tema[$statusKandang]['badge'] }} px-3 py-2 fw-bold rounded-pill" style="font-size: 0.9rem;">
+                    <i class="fas {{ $iconHeader[$statusKandang] }} me-1"></i> {{ $teksHeader[$statusKandang] }}
+                </span>
             </div>
         </div>
 
         <!-- 3 Card Utama -->
         <div class="row g-4 mb-4">
+            <!-- Card Suhu -->
             <div class="col-md-4">
                 <div class="card-custom">
                     <div class="d-flex justify-content-between align-items-center mb-3">
-                        <div class="bg-warning bg-opacity-10 p-3 rounded-3 text-warning"><i class="fas fa-temperature-high fa-lg"></i></div>
-                        <span class="badge bg-success bg-opacity-10 text-success px-2 py-1 rounded-pill small">LIVE</span>
+                        <div class="bg-{{ $tema[$lvSuhu]['bs'] }} bg-opacity-10 p-3 rounded-3" style="color: {{ $tema[$lvSuhu]['hex'] }};"><i class="fas fa-temperature-high fa-lg"></i></div>
+                        <span class="{{ $tema[$lvSuhu]['badge'] }}" style="font-size: 0.7rem;">LIVE</span>
                     </div>
                     <span class="text-muted small text-uppercase fw-semibold">Suhu Kandang</span>
-                    <h2 class="fw-bold display-5 my-1">{{ $latestLog->suhu ?? '0' }} <span class="fs-4 text-muted">°C</span></h2>
-                    <div class="mt-3 pt-2 border-top text-muted small"><i class="fas fa-check-circle text-success me-1"></i> Dalam batas aman <span class="text-dark fw-semibold">Batas {{ $alat->batasAmbang->suhuMin ?? 24 }}–{{ $alat->batasAmbang->suhuMax ?? 32 }}°C</span></div>
+                    <h2 class="fw-bold display-5 my-1" style="color: {{ $lvSuhu === 'aman' ? 'inherit' : $tema[$lvSuhu]['hex'] }};">{{ $latestLog->suhu ?? '0' }} <span class="fs-4 text-muted">°C</span></h2>
+                    <div class="mt-3 pt-2 border-top text-muted small">
+                        <i class="fas {{ $tema[$lvSuhu]['icon'] }} me-1" style="color: {{ $tema[$lvSuhu]['hex'] }};"></i>
+                        <span style="color: {{ $tema[$lvSuhu]['hex'] }};">{{ $pesanSuhu[$lvSuhu] }}</span>
+                        <span class="text-dark fw-semibold">Batas {{ $suhuMin }}–{{ $suhuMax }}°C</span>
+                    </div>
                 </div>
             </div>
 
+            <!-- Card Amonia -->
             <div class="col-md-4">
                 <div class="card-custom">
                     <div class="d-flex justify-content-between align-items-center mb-3">
-                        <div class="bg-success bg-opacity-10 p-3 rounded-3 text-success"><i class="fas fa-smog fa-lg"></i></div>
-                        <span class="badge bg-success bg-opacity-10 text-success px-2 py-1 rounded-pill small">LIVE</span>
+                        <div class="bg-{{ $tema[$lvAmonia]['bs'] }} bg-opacity-10 p-3 rounded-3" style="color: {{ $tema[$lvAmonia]['hex'] }};"><i class="fas fa-smog fa-lg"></i></div>
+                        <span class="{{ $tema[$lvAmonia]['badge'] }}" style="font-size: 0.7rem;">LIVE</span>
                     </div>
                     <span class="text-muted small text-uppercase fw-semibold">Gas Amonia</span>
-                    <h2 class="fw-bold display-5 my-1">{{ $latestLog->amonia ?? '0' }} <span class="fs-4 text-muted">ppm</span></h2>
-                    <div class="mt-3 pt-2 border-top text-muted small"><i class="fas fa-check-circle text-success me-1"></i> Kualitas udara baik <span class="text-dark fw-semibold">Batas &lt; {{ $alat->batasAmbang->amoniaMax ?? 20 }} ppm</span></div>
+                    <h2 class="fw-bold display-5 my-1" style="color: {{ $lvAmonia === 'aman' ? 'inherit' : $tema[$lvAmonia]['hex'] }};">{{ $latestLog->amonia ?? '0' }} <span class="fs-4 text-muted">ppm</span></h2>
+                    <div class="mt-3 pt-2 border-top text-muted small">
+                        <i class="fas {{ $tema[$lvAmonia]['icon'] }} me-1" style="color: {{ $tema[$lvAmonia]['hex'] }};"></i>
+                        <span style="color: {{ $tema[$lvAmonia]['hex'] }};">{{ $pesanAmonia[$lvAmonia] }}</span>
+                        <span class="text-dark fw-semibold">Batas &lt; {{ $amoniaMax }} ppm</span>
+                    </div>
                 </div>
             </div>
 
+            <!-- Card Status Sensor -->
             <div class="col-md-4">
                 <div class="card-custom">
                     <div class="d-flex justify-content-between align-items-center mb-3">
@@ -189,6 +273,11 @@
                     <!-- Canvas Chart.js -->
                     <div class="bg-white rounded-3 p-2" style="height: 230px; position: relative;">
                         <canvas id="dashboardChart"></canvas>
+                    </div>
+                    <div class="d-flex gap-3 small text-muted mt-2">
+                        <span><i class="fas fa-circle me-1" style="color: #22c55e; font-size: 8px;"></i> Titik Aman</span>
+                        <span><i class="fas fa-circle me-1" style="color: #f59e0b; font-size: 8px;"></i> Titik Peringatan</span>
+                        <span><i class="fas fa-circle me-1" style="color: #ef4444; font-size: 8px;"></i> Titik Kritis</span>
                     </div>
                 </div>
             </div>
@@ -239,11 +328,21 @@
                             </thead>
                             <tbody>
                                 @forelse($logs as $log)
+                                    @php
+                                        $stLog = in_array(strtolower($log->status ?? ''), ['aman', 'peringatan', 'kritis'])
+                                            ? strtolower($log->status) : 'aman';
+                                        $lvS = $levelSuhu($log->suhu);
+                                        $lvA = $levelAmonia($log->amonia);
+                                    @endphp
                                     <tr>
                                         <td>{{ \Carbon\Carbon::parse($log->created_at)->format('H:i:s WIB') }}</td>
-                                        <td class="fw-bold text-danger">{{ $log->suhu }} °C</td>
-                                        <td class="fw-bold text-success">{{ $log->amonia }} ppm</td>
-                                        <td><span class="badge bg-success bg-opacity-25 text-success">{{ $log->status ?? 'Aman' }}</span></td>
+                                        <td class="fw-bold" style="color: {{ $tema[$lvS]['hex'] }};">{{ $log->suhu }} °C</td>
+                                        <td class="fw-bold" style="color: {{ $tema[$lvA]['hex'] }};">{{ $log->amonia }} ppm</td>
+                                        <td>
+                                            <span class="{{ $tema[$stLog]['badge'] }}">
+                                                <i class="fas fa-circle me-1" style="font-size: 6px;"></i> {{ $log->status ?? 'Aman' }}
+                                            </span>
+                                        </td>
                                     </tr>
                                 @empty
                                     <tr><td colspan="4" class="text-center text-muted">Belum ada data.</td></tr>
@@ -259,15 +358,15 @@
                     <h5 class="fw-bold mb-3 fs-6">Ambang Batas Pengaturan Aktif</h5>
                     <div class="d-flex flex-column gap-2">
                         <div class="p-2 bg-light rounded-3 d-flex justify-content-between align-items-center">
-                            <div><span class="text-muted small d-block">Suhu Min</span><h6 class="fw-bold mb-0">{{ $alat->batasAmbang->suhuMin ?? 24 }} °C</h6></div>
+                            <div><span class="text-muted small d-block">Suhu Min</span><h6 class="fw-bold mb-0">{{ $suhuMin }} °C</h6></div>
                             <span class="badge bg-warning bg-opacity-25 text-dark small">Pemanas</span>
                         </div>
                         <div class="p-2 bg-light rounded-3 d-flex justify-content-between align-items-center">
-                            <div><span class="text-muted small d-block">Suhu Maks</span><h6 class="fw-bold mb-0">{{ $alat->batasAmbang->suhuMax ?? 32 }} °C</h6></div>
+                            <div><span class="text-muted small d-block">Suhu Maks</span><h6 class="fw-bold mb-0">{{ $suhuMax }} °C</h6></div>
                             <span class="badge bg-danger bg-opacity-25 text-danger small">Exhaust</span>
                         </div>
                         <div class="p-2 bg-light rounded-3 d-flex justify-content-between align-items-center">
-                            <div><span class="text-muted small d-block">Amonia Maks</span><h6 class="fw-bold mb-0">{{ $alat->batasAmbang->amoniaMax ?? 20 }} ppm</h6></div>
+                            <div><span class="text-muted small d-block">Amonia Maks</span><h6 class="fw-bold mb-0">{{ $amoniaMax }} ppm</h6></div>
                             <span class="badge bg-success bg-opacity-25 text-success small">Sirkulasi</span>
                         </div>
                     </div>
@@ -299,6 +398,16 @@
                 @endforeach
             ];
 
+            // Status tiap titik (Aman / Peringatan / Kritis) untuk mewarnai titik grafik
+            const dataStatus = @json($logs->reverse()->pluck('status')->values());
+
+            const warnaStatus = {
+                'aman': '#22c55e',
+                'peringatan': '#f59e0b',
+                'kritis': '#ef4444'
+            };
+            const warnaTitik = dataStatus.map(s => warnaStatus[(s || 'aman').toLowerCase()] || warnaStatus['aman']);
+
             const gradientSuhu = ctx.createLinearGradient(0, 0, 0, 200);
             gradientSuhu.addColorStop(0, 'rgba(255, 152, 0, 0.3)');
             gradientSuhu.addColorStop(1, 'rgba(255, 152, 0, 0.0)');
@@ -320,7 +429,9 @@
                             borderWidth: 2.5,
                             fill: true,
                             tension: 0.4,
-                            pointRadius: 3
+                            pointRadius: 4,
+                            pointBackgroundColor: warnaTitik,
+                            pointBorderColor: warnaTitik
                         },
                         {
                             label: 'Amonia (ppm)',
@@ -331,7 +442,9 @@
                             borderDash: [4, 4],
                             fill: true,
                             tension: 0.4,
-                            pointRadius: 3
+                            pointRadius: 4,
+                            pointBackgroundColor: warnaTitik,
+                            pointBorderColor: warnaTitik
                         }
                     ]
                 },
